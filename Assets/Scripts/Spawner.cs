@@ -1,103 +1,76 @@
 using UnityEngine.Pool;
 using UnityEngine;
-using System.Collections.Generic;
 
 public class Spawner : MonoBehaviour
 {
-    [SerializeField] private GameObject _prefab;
-
-    [SerializeField] private ClickReader _clickReader;
+    [SerializeField] private Cube _prefab;
 
     [SerializeField] private int _poolCapacity = 5;
     [SerializeField] private int _poolMaxSize = 20;
 
-    [SerializeField] private float _spawnRadius = 100f;
+    [SerializeField] private float _spawnRadius = 25f;
+    [SerializeField] private float _spawnCooldown = 1f;
 
-    private List<Timer> _activeTimers = new List<Timer>();
 
-    private ObjectPool<GameObject> _pool;
+    private ObjectPool<Cube> _pool;
+
+    private float _spawnTimer;
 
     private void Awake()
     {
-        _pool = new ObjectPool<GameObject>(
-            createFunc: () => Instantiate(_prefab),
-            actionOnGet: (obj) => ActionOnGet(obj),
-            actionOnRelease: (obj) => obj.SetActive(false),
-            actionOnDestroy: (obj) => Destroy(obj),
+        _pool = new ObjectPool<Cube>(
+            createFunc: () => CreateCube(),
+            actionOnGet: (cube) => ActionOnGet(cube),
+            actionOnRelease: (cube) => cube.gameObject.SetActive(false),
+            actionOnDestroy: (cube) => Destroy(cube),
             collectionCheck: true,
             defaultCapacity: _poolCapacity,
             maxSize: _poolMaxSize);
     }
 
-    private void OnEnable()
+    private void Update()
     {
-        _clickReader.ClickAccepted += SpawnObject;
+        SpawnCubes();
     }
 
     private void OnDisable()
     {
-        _clickReader.ClickAccepted -= SpawnObject;
+        _pool?.Clear();
+    }
 
-        foreach (Timer timer in _activeTimers)
+    private void SpawnCubes()
+    {
+        _spawnTimer += Time.deltaTime;
+
+        if (_spawnTimer >= _spawnCooldown)
         {
-            if (timer != null)
-            {
-                timer.Wasted -= HandleTimerWasted;
-            }
+            _spawnTimer = 0f;
 
-            _activeTimers.Clear();
-
-            _pool?.Clear(); 
+            SpawnCube();
         }
     }
 
-    public void RegisterNewTimer(Timer timer)
-    {
-        if(timer != null && _activeTimers.Contains(timer) == false)
-        {
-            timer.Wasted += HandleTimerWasted;
-
-            _activeTimers.Add(timer);
-        }
-    }    
-
-    private void SpawnObject()
+    private void SpawnCube()
     {
         _pool.Get();
     }
 
-    private void HandleTimerWasted(Timer timer)
+    private Cube CreateCube()
     {
-        _pool.Release(timer.gameObject);
+        Cube cube = Instantiate(_prefab);
+        
+        cube.TimeWasted += CubeTimeWasted;
 
-        timer.Wasted -= HandleTimerWasted;
-
-        _activeTimers.Remove(timer);
+        return cube;
     }
 
-    private void ActionOnGet(GameObject obj)
+    private void ActionOnGet(Cube cube)
     {
-        obj.transform.position = CalculateSpawnPosition();
+        cube.transform.position = CalculateSpawnPosition();
 
-        if (obj.TryGetComponent(out Rigidbody rigidbody))
-        {
-            rigidbody.velocity = Vector3.zero;
-            rigidbody.angularVelocity = Vector3.zero;
+        cube.ResetCube();
 
-            rigidbody.rotation = Quaternion.identity;
-        }
-
-        if (obj.TryGetComponent(out Renderer renderer)) 
-        {
-        renderer.material.color = Color.white;
-        }
-
-        if (obj.TryGetComponent(out Cube cube))
-        {
-            cube.ResetColorTag();
-        }
-
-        obj.SetActive(true);
+        cube.gameObject.SetActive(true);
     }
 
     private Vector3 CalculateSpawnPosition()
@@ -105,5 +78,20 @@ public class Spawner : MonoBehaviour
         Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * _spawnRadius;
 
         return transform.position + new Vector3(randomCircle.x, 0f, randomCircle.y);
+    }
+
+    private void CubeTimeWasted(Cube cube)
+    {
+        _pool.Release(cube);
+    }
+
+    private void Destroy(Cube cube)
+    {
+        if (cube != null)
+        {
+            cube.TimeWasted -= CubeTimeWasted;
+
+            Destroy(cube.gameObject);
+        }
     }
 }
