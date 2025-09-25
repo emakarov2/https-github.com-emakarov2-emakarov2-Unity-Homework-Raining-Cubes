@@ -1,5 +1,5 @@
 using System;
-
+using System.Collections;
 using UnityEngine;
 
 public class Timer
@@ -7,30 +7,40 @@ public class Timer
     private float _minLifeTime = 2f;
     private float _maxLifeTime = 5f;
 
-    private float _currentLifeTime;
-    private float _fullLifeTime;
+    private MonoBehaviour _coroutineRunner;
+    private Coroutine _timerCoroutine;
 
     public event Action Wasted;
 
-    public Timer()
+    public Timer(MonoBehaviour coroutineRunner)
     {
-        _currentLifeTime = 0;
-
-        SetFullLifeTime();
+        _coroutineRunner = coroutineRunner;
     }
 
-    public void Run()
+    public void Start()
     {
-        _currentLifeTime += Time.deltaTime;
+        float lifeTime = UnityEngine.Random.Range(_minLifeTime, _maxLifeTime);
 
-        if (_currentLifeTime >= _fullLifeTime)
+        Stop();
+
+        _timerCoroutine = _coroutineRunner.StartCoroutine(CountTime(lifeTime));
+    }
+
+    public void Stop()
+    {
+        if (_timerCoroutine != null)
         {
-            Wasted?.Invoke();
+            _coroutineRunner.StopCoroutine(_timerCoroutine);
+            _timerCoroutine = null;
         }
     }
 
-    private void SetFullLifeTime()
+    private IEnumerator CountTime(float lifetime)
     {
-        _fullLifeTime = UnityEngine.Random.Range(_minLifeTime, _maxLifeTime);
+        yield return new WaitForSeconds(lifetime);
+
+        Wasted?.Invoke();
+
+        _timerCoroutine = null;
     }
 }

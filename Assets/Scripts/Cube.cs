@@ -13,36 +13,34 @@ public class Cube : MonoBehaviour
 
     private Color _defaultColor;
 
-    public bool IsColored { get; private set; } = false;
-
     public event Action<Cube> TimeWasted;
+
+    public bool IsColored { get; private set; } = false;
 
     private void Awake()
     {
-        TryGetComponent(out _renderer);
-        TryGetComponent(out _rigidbody);
+        _renderer = GetComponent<Renderer>();
+        _rigidbody = GetComponent<Rigidbody>();
 
         _defaultColor = _renderer.material.color;
-    }
 
-    private void Update()
-    {
-        _timer?.Run();
+        _timer = new Timer(this);
+        _timer.Wasted += OnTimeWasted;
     }
 
     private void OnDisable()
     {
-        _timer = null;
+        _timer.Wasted -= OnTimeWasted;
+        _timer?.Stop();
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (collision.gameObject.TryGetComponent(out Platform platform) && IsColored == false)
+        if (IsColored == false && collision.gameObject.TryGetComponent(out Platform platform))
         {
             SetRandomColor();
 
-            _timer = new Timer();
-            _timer.Wasted += TimeWastedAlarm;
+            _timer.Start();
         }
     }
 
@@ -58,10 +56,10 @@ public class Cube : MonoBehaviour
             _rigidbody.rotation = Quaternion.identity;
         }
 
-        _timer = null;
+        _timer?.Stop();
     }
 
-    private void TimeWastedAlarm()
+    private void OnTimeWasted()
     {
         TimeWasted?.Invoke(this);
     }

@@ -1,5 +1,6 @@
 using UnityEngine.Pool;
 using UnityEngine;
+using System.Collections;
 
 public class Spawner : MonoBehaviour
 {
@@ -9,18 +10,17 @@ public class Spawner : MonoBehaviour
     [SerializeField] private int _poolMaxSize = 20;
 
     [SerializeField] private float _spawnRadius = 25f;
-    [SerializeField] private float _spawnCooldown = 1f;
+    [SerializeField] private float _spawnCooldownInSeconds = 0.5f;
 
+    private Coroutine _spawnCoroutine;
 
     private ObjectPool<Cube> _pool;
-
-    private float _spawnTimer;
 
     private void Awake()
     {
         _pool = new ObjectPool<Cube>(
             createFunc: () => CreateCube(),
-            actionOnGet: (cube) => ActionOnGet(cube),
+            actionOnGet: (cube) => GetFromPool(cube),
             actionOnRelease: (cube) => cube.gameObject.SetActive(false),
             actionOnDestroy: (cube) => Destroy(cube),
             collectionCheck: true,
@@ -28,23 +28,27 @@ public class Spawner : MonoBehaviour
             maxSize: _poolMaxSize);
     }
 
-    private void Update()
+    private void OnEnable()
     {
-        SpawnCubes();
+        _spawnCoroutine = StartCoroutine(SpawnCubesPerCooldown());
     }
 
     private void OnDisable()
     {
+        if (_spawnCoroutine != null)
+        {
+            StopCoroutine(_spawnCoroutine);
+            _spawnCoroutine = null;
+        }
+
         _pool?.Clear();
     }
 
-    private void SpawnCubes()
+  private IEnumerator SpawnCubesPerCooldown()
     {
-        _spawnTimer += Time.deltaTime;
-
-        if (_spawnTimer >= _spawnCooldown)
+        while (true)
         {
-            _spawnTimer = 0f;
+            yield return new WaitForSeconds(_spawnCooldownInSeconds);
 
             SpawnCube();
         }
@@ -59,12 +63,12 @@ public class Spawner : MonoBehaviour
     {
         Cube cube = Instantiate(_prefab);
         
-        cube.TimeWasted += CubeTimeWasted;
+        cube.TimeWasted += OnCubeTimeWasted;
 
         return cube;
     }
 
-    private void ActionOnGet(Cube cube)
+    private void GetFromPool(Cube cube)
     {
         cube.transform.position = CalculateSpawnPosition();
 
@@ -80,7 +84,7 @@ public class Spawner : MonoBehaviour
         return transform.position + new Vector3(randomCircle.x, 0f, randomCircle.y);
     }
 
-    private void CubeTimeWasted(Cube cube)
+    private void OnCubeTimeWasted(Cube cube)
     {
         _pool.Release(cube);
     }
@@ -89,7 +93,7 @@ public class Spawner : MonoBehaviour
     {
         if (cube != null)
         {
-            cube.TimeWasted -= CubeTimeWasted;
+            cube.TimeWasted -= OnCubeTimeWasted;
 
             Destroy(cube.gameObject);
         }
